@@ -68,6 +68,20 @@ def dedupe_reviews(order_reviews: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     return deduped, before - len(deduped)
 
 
+def merge_item_product_attrs(
+    order_items: pd.DataFrame, products_mapped: pd.DataFrame
+) -> pd.DataFrame:
+    return order_items.merge(
+        products_mapped[["product_id", "category_final", "product_weight_g"]],
+        on="product_id",
+        how="left",
+    )
+
+
+def flag_invalid_weight(items: pd.DataFrame) -> pd.Series:
+    return items["product_weight_g"].isna() | (items["product_weight_g"] <= 0)
+
+
 def flag_iqr_outliers(order_items: pd.DataFrame, column: str) -> pd.Series:
     q1, q3 = order_items[column].quantile([0.25, 0.75])
     iqr = q3 - q1
