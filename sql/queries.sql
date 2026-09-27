@@ -53,7 +53,9 @@ ORDER BY order_month;
 -- Business question: Which product categories should be prioritized for
 --   intervention? Weight both size (volume/revenue) and severity (% low-review).
 -- Grain of result: one row per primary_category.
--- How to read it: revenue_at_risk = revenue * pct_low_review_rate. priority_rank
+-- How to read it: revenue_at_risk = SUM(total_price) WHERE review_score <= 3,
+--   i.e. the actual dollars attached to that category's bad-review orders, not
+--   an estimate that assumes bad-review orders are average-priced. priority_rank
 --   orders categories by revenue_at_risk descending.
 -- Cross-cutting note: partitioned by primary_category throughout -- no
 --   cross-category pooling.
@@ -64,7 +66,8 @@ WITH category_stats AS (
         SUM(total_price) AS revenue,
         AVG(review_score) AS avg_review_score,
         COUNT(*) FILTER (WHERE review_score <= 3) * 1.0
-            / NULLIF(COUNT(*) FILTER (WHERE review_score IS NOT NULL), 0) AS pct_low_review_rate
+            / NULLIF(COUNT(*) FILTER (WHERE review_score IS NOT NULL), 0) AS pct_low_review_rate,
+        SUM(total_price) FILTER (WHERE review_score <= 3) AS revenue_at_risk_raw
     FROM 'data/processed/orders_clean.parquet'
     GROUP BY primary_category
 ),
@@ -75,7 +78,7 @@ priority AS (
         ROUND(revenue, 2) AS revenue,
         ROUND(avg_review_score, 3) AS avg_review_score,
         ROUND(pct_low_review_rate * 100, 2) AS pct_low_review,
-        ROUND(revenue * pct_low_review_rate, 2) AS revenue_at_risk
+        ROUND(COALESCE(revenue_at_risk_raw, 0), 2) AS revenue_at_risk
     FROM category_stats
 )
 SELECT *, RANK() OVER (ORDER BY revenue_at_risk DESC) AS priority_rank
@@ -84,22 +87,21 @@ ORDER BY priority_rank;
 
 -- Q2 -- Delivery-sensitivity by category
 -- Business question: Does late delivery hurt reviews equally across categories?
---   Does early delivery help, or is on-time already enough?
--- Grain of result: one row per primary_category (categories missing any of the
---   Early 2+ / On-time / Late 8+ buckets entirely are excluded).
+-- Grain of result: one row per primary_category (categories missing the
+--   baseline or Late 8+ bucket entirely are excluded).
 -- How to read it: delivery_gap_days = actual - estimated (positive = late).
---   early_lift = avg_review(Early 2+) - avg_review(On-time);
---   late_drop  = avg_review(On-time) - avg_review(Late 8+).
---   Ranked by late_drop descending (logistics prioritization list).
+--   baseline = avg_review where delivery_gap_days <= 0 (early or on-time,
+--   merged since the exact on-time day alone is too thin a bucket to trust).
+--   late_drop = avg_review(baseline) - avg_review(Late 8+); higher late_drop
+--   means that category is more delivery-sensitive. Ranked by late_drop
+--   descending (logistics prioritization list).
 -- Cross-cutting note: partitioned by primary_category throughout.
 WITH bucketed AS (
     SELECT
         primary_category,
         review_score,
         CASE
-            WHEN delivery_gap_days <= -2 THEN 'Early 2+'
-            WHEN delivery_gap_days = -1 THEN 'Early 1'
-            WHEN delivery_gap_days = 0 THEN 'On-time'
+            WHEN delivery_gap_days <= 0 THEN 'baseline'
             WHEN delivery_gap_days BETWEEN 1 AND 3 THEN 'Late 1-3'
             WHEN delivery_gap_days BETWEEN 4 AND 7 THEN 'Late 4-7'
             ELSE 'Late 8+'
@@ -115,9 +117,7 @@ category_bucket_avg AS (
 pivoted AS (
     SELECT
         primary_category,
-        MAX(avg_review_score) FILTER (WHERE gap_bucket = 'Early 2+') AS early2plus,
-        MAX(avg_review_score) FILTER (WHERE gap_bucket = 'Early 1') AS early1,
-        MAX(avg_review_score) FILTER (WHERE gap_bucket = 'On-time') AS ontime,
+        MAX(avg_review_score) FILTER (WHERE gap_bucket = 'baseline') AS baseline,
         MAX(avg_review_score) FILTER (WHERE gap_bucket = 'Late 1-3') AS late1to3,
         MAX(avg_review_score) FILTER (WHERE gap_bucket = 'Late 4-7') AS late4to7,
         MAX(avg_review_score) FILTER (WHERE gap_bucket = 'Late 8+') AS late8plus,
@@ -127,12 +127,11 @@ pivoted AS (
 )
 SELECT
     primary_category, total_orders,
-    ROUND(early2plus, 3) AS early2plus, ROUND(early1, 3) AS early1, ROUND(ontime, 3) AS ontime,
+    ROUND(baseline, 3) AS baseline,
     ROUND(late1to3, 3) AS late1to3, ROUND(late4to7, 3) AS late4to7, ROUND(late8plus, 3) AS late8plus,
-    ROUND(early2plus - ontime, 3) AS early_lift,
-    ROUND(ontime - late8plus, 3) AS late_drop
+    ROUND(baseline - late8plus, 3) AS late_drop
 FROM pivoted
-WHERE early2plus IS NOT NULL AND ontime IS NOT NULL AND late8plus IS NOT NULL
+WHERE baseline IS NOT NULL AND late8plus IS NOT NULL
 ORDER BY late_drop DESC;
 
 -- Q3 -- State delivery-vs-review quadrant
