@@ -191,6 +191,14 @@ Comparing dissimilar products directly (e.g., furniture delivery time vs. cosmet
 
 Every chart must be preceded by a markdown cell stating the question it answers (referencing the sub-question table in Section 1) and followed by a 2–3 sentence written takeaway. No chart should exist without both.
 
+EDA covers three activities: **summarising** (the descriptive statistics below), **visualising** (the chart set below), and **looking for patterns and problems** (the findings summary at the end of the notebook).
+
+### Descriptive statistics
+
+Mean, median, mode, variance, range, IQR for review score, delivery gap, freight-to-price ratio, and order value — segmented by category and by state. Present as a clean summary table. (Descriptive statistics live in this EDA phase; Phase 4 covers inferential, predictive, and prescriptive analysis only.)
+
+### Charts
+
 Minimum chart set:
 - Review score distribution (answers: how big is the problem)
 - Revenue by review-score bucket (answers: revenue at risk)
@@ -205,8 +213,7 @@ Minimum chart set:
 
 **Notebook:** `04_statistical_analysis.ipynb`
 
-### Descriptive
-Mean, median, mode, variance, range, IQR for review score, delivery gap, freight-to-price ratio, and order value — segmented by category and by state. Present as a clean summary table.
+This phase covers inferential, predictive, and prescriptive analysis.
 
 ### Inferential
 For **each** test below: state H₀ and H₁ explicitly in a markdown cell, check relevant assumptions (e.g., normality via QQ plot before defaulting to a t-test; report Shapiro-Wilk or just visually justify), report the test statistic and p-value, and close with one sentence translating the result into a business conclusion.
