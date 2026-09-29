@@ -211,9 +211,9 @@ Minimum chart set:
 
 ## 8. Phase 4 — Statistical Analysis
 
-**Notebook:** `04_statistical_analysis.ipynb`
+**Notebooks:** `04_statistical_analysis.ipynb` (inferential tests) and `05_modeling.ipynb` (predictive + prescriptive).
 
-This phase covers inferential, predictive, and prescriptive analysis.
+This phase covers inferential, predictive, and prescriptive analysis. The inferential tests live in `04_statistical_analysis.ipynb`; the predictive model and prescriptive simulation live in `05_modeling.ipynb` (which Phase 5's findings section is then appended to).
 
 ### Inferential
 For **each** test below: state H₀ and H₁ explicitly in a markdown cell, check relevant assumptions (e.g., normality via QQ plot before defaulting to a t-test; report Shapiro-Wilk or just visually justify), report the test statistic and p-value, and close with one sentence translating the result into a business conclusion.
@@ -228,7 +228,7 @@ For **each** test below: state H₀ and H₁ explicitly in a markdown cell, chec
 
 ### Predictive
 - **Target:** `low_review = 1 if review_score <= 3 else 0`.
-- **Features:** delivery_gap_days, actual delivery days, price, freight_value, freight-to-price ratio, category, state, seller historical avg review (computed with a lagged/expanding window to avoid leakage), max_installments, item_count, weekday of purchase.
+- **Features:** delivery_gap_days, actual_delivery_days, total_payment_value (amount the customer actually paid), total_freight, freight-to-price ratio (`total_freight / total_price`, consistent with EDA/SQL), primary_category, customer_state, payment_type, max_installments, item_count, weekday of purchase. (Seller historical avg review is intentionally out — seller performance is covered in SQL Q4/Q6, and dropping it avoids the leakage-window step.)
 - **Split:** time-based — train on orders up to a cutoff (e.g. mid-2018), test on the remainder. Do not use a random split; justify why in a markdown cell (leakage/realism).
 - **Base model:** Logistic Regression (standardized numeric features, one-hot categoricals). Report Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC, and confusion matrix.
 - **Improved model:** LightGBM with 5-fold stratified cross-validation for hyperparameter tuning (learning_rate, num_leaves, min_child_samples). Report the same metrics side by side with the base model in one comparison table.
